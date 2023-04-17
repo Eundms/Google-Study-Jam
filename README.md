@@ -1,1 +1,127 @@
 # Google-Cloud-Study-Jam
+## ※ Docker 컨테이너 빌드, 실행, 디버그 ※ 
+### Task01. Hello World
+```shell
+docker run hello-world # docker 실행
+```
+```shell
+docker images # docker image 가 Docker Hub에서 pull 되었는지 확인
+```
+```shell
+docker ps # 현재 실행중인 container 확인
+docker ps -a # 실행 종료한 container도 확인
+```
+### Task02. Build
+> 도커 컨테이너 빌드
+```shell
+mkdir test && cd test #test 폴더만들고, 해당 위치로 이동
+```
+
+```shell
+cat > Dockerfile <<EOF
+# Use an official Node runtime as the parent image
+FROM node:lts
+# Set the working directory in the container to /app
+WORKDIR /app
+# Copy the current directory contents into the container at /app
+ADD . /app
+# Make the container's port 80 available to the outside world
+EXPOSE 80
+# Run app.js using node when the container launches
+CMD ["node", "app.js"]
+EOF
+```
+```shell
+cat > app.js <<EOF
+const http = require('http');
+const hostname = '0.0.0.0';
+const port = 80;
+const server = http.createServer((req, res) => {
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/plain');
+    res.end('Hello World\n');
+});
+server.listen(port, hostname, () => {
+    console.log('Server running at http://%s:%s/', hostname, port);
+});
+process.on('SIGINT', function() {
+    console.log('Caught interrupt signal and will exit');
+    process.exit();
+});
+EOF
+```
+
+```shell
+docker build -t node-app:0.1 .  # . : run this command from within the directory that has the Dockerfile
+```
+
+```shell
+docker images 
+```
+### Task03. Run
+```shell
+docker run -p 4000:80 --name my-app node-app:0.1
+```
+- `--name` : 컨테이너 이름
+- `-p 호스트포트:컨테이너포트` 
+    - `http://localhost:4000` 로 요청보냈을 때, 컨테이너80번포트로 요청 들어옴
+```shell
+docker stop my-app && docker rm my-app # my-app 종료, 삭제
+```
+```shell
+docker logs [container_id] # 컨테이너 로그 확인
+```
+
+### Task04. Debug
+```shell
+docker logs -f [container_id] # -f로 실행중인 컨테이너 output 확인
+```
+```shell
+docker exec -it [container_id] bash # container내에서 bash 셀 실행
+```
+```shell
+docker inspect [container_id]  # container 메타데이터 확인
+```
+```shell
+docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' [container_id]  # json 형식으로 확
+```
+
+### Task05. Publish
+> Google Artifact Registry에 이미지 push
+1. configure authentication
+```shell
+gcloud auth configure-docker us-central1-docker.pkg.dev
+```
+## ※ Google Artifact Registry에 Docker 이미지 푸시하기 ※ 
+2. Push the container to Artifact Registry
+```shell
+export PROJECT_ID=$(gcloud config get-value project)
+cd ~/test
+``` 
+```shell
+docker build -t us-central1-docker.pkg.dev/$PROJECT_ID/my-repository/node-app:0.2 .
+```
+```shell
+docker images
+```
+```shell
+docker push us-central1-docker.pkg.dev/$PROJECT_ID/my-repository/node-app:0.2
+```
+3. Test the image
+```shell
+docker stop $(docker ps -q)
+docker rm $(docker ps -aq)
+```
+```shell
+docker rmi us-central1-docker.pkg.dev/$PROJECT_ID/my-repository/node-app:0.2
+docker rmi node:lts
+docker rmi -f $(docker images -aq) # remove remaining images
+docker images
+```
+## ※ Docker Hub 및 Google Artifact Registry에서 Docker 이미지 가져오기 ※ 
+```shell
+docker pull us-central1-docker.pkg.dev/$PROJECT_ID/my-repository/node-app:0.2
+docker run -p 4000:80 -d us-central1-docker.pkg.dev/$PROJECT_ID/my-repository/node-app:0.2
+curl http://localhost:4000
+```
+
